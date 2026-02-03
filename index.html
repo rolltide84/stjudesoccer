@@ -1,0 +1,332 @@
+// ==========================================
+// SOCCER TOURNAMENT REGISTRATION - GOOGLE APPS SCRIPT
+// ==========================================
+// This script handles form submissions, writes to Google Sheets, and sends emails
+// 
+// SETUP INSTRUCTIONS:
+// 1. Open your Google Sheet: https://docs.google.com/spreadsheets/d/1Vet2aKcdylxgejmiNJSVbpbdOyf6bRDugxUDeaHnllg/edit
+// 2. Go to Extensions > Apps Script
+// 3. Delete any existing code and paste this entire script
+// 4. Save the project (give it a name like "Tournament Registration Handler")
+// 5. Click "Deploy" > "New deployment"
+// 6. Click the gear icon next to "Select type" and choose "Web app"
+// 7. Set "Execute as" to "Me"
+// 8. Set "Who has access" to "Anyone"
+// 9. Click "Deploy"
+// 10. Copy the Web app URL
+// 11. Replace 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE' in the HTML form with this URL
+// 12. Authorize the script when prompted
+// ==========================================
+
+// Configuration
+const CONFIG = {
+  SHEET_ID: '1Vet2aKcdylxgejmiNJSVbpbdOyf6bRDugxUDeaHnllg',
+  SHEET_NAME: 'Registrations', // Change if your sheet has a different name
+  NOTIFICATION_EMAIL: 'jjones0848@gmail.com'
+};
+
+// Function to handle GET requests (when someone visits the URL directly)
+function doGet(e) {
+  return ContentService
+    .createTextOutput('Soccer Tournament Registration System is active and ready to receive submissions.')
+    .setMimeType(ContentService.MimeType.TEXT);
+}
+
+// Main function to handle POST requests from the form
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    
+    // Write to Google Sheet
+    writeToSheet(data);
+    
+    // Send email notification
+    sendEmailNotification(data);
+    
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: true }))
+      .setMimeType(ContentService.MimeType.JSON);
+      
+  } catch (error) {
+    console.error('Error:', error);
+    return ContentService
+      .createTextOutput(JSON.stringify({ 
+        success: false, 
+        message: error.toString() 
+      }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// Write registration data to Google Sheet
+function writeToSheet(data) {
+  const ss = SpreadsheetApp.openById(CONFIG.SHEET_ID);
+  let sheet = ss.getSheetByName(CONFIG.SHEET_NAME);
+  
+  // Create sheet if it doesn't exist
+  if (!sheet) {
+    sheet = ss.insertSheet(CONFIG.SHEET_NAME);
+    // Add headers
+    const headers = [
+      'Timestamp',
+      'Registration Type',
+      'First Name',
+      'Last Name',
+      'Email',
+      'Phone',
+      'Date of Birth',
+      'Team Name',
+      'Number of Players',
+      'Age Division',
+      'Position',
+      'Experience Level',
+      'Emergency Contact Name',
+      'Emergency Contact Phone',
+      'Medical Info',
+      'Comments',
+      'Liability Agreement'
+    ];
+    sheet.appendRow(headers);
+    
+    // Format header row
+    const headerRange = sheet.getRange(1, 1, 1, headers.length);
+    headerRange.setFontWeight('bold');
+    headerRange.setBackground('#2ecc71');
+    headerRange.setFontColor('#ffffff');
+  }
+  
+  // Prepare row data
+  const row = [
+    new Date(data.timestamp),
+    data.registrationType || '',
+    data.firstName || '',
+    data.lastName || '',
+    data.email || '',
+    data.phone || '',
+    data.dateOfBirth || '',
+    data.teamName || 'N/A',
+    data.numberOfPlayers || 'N/A',
+    data.ageDivision || 'N/A',
+    data.position || 'N/A',
+    data.experienceLevel || 'N/A',
+    data.emergencyContactName || '',
+    data.emergencyContactPhone || '',
+    data.medicalInfo || 'None',
+    data.comments || 'None',
+    data.liabilityAgreement ? 'Yes' : 'No'
+  ];
+  
+  sheet.appendRow(row);
+  
+  // Auto-resize columns
+  sheet.autoResizeColumns(1, row.length);
+}
+
+// Send email notification
+function sendEmailNotification(data) {
+  const registrationType = data.registrationType === 'team' ? 'Team' : 'Individual';
+  
+  // Email subject
+  const subject = `New ${registrationType} Soccer Tournament Registration - ${data.firstName} ${data.lastName}`;
+  
+  // Build email body
+  let emailBody = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+    .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+    .section { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; border-left: 4px solid #2ecc71; }
+    .section h2 { color: #2ecc71; margin-top: 0; font-size: 18px; }
+    .field { margin-bottom: 10px; }
+    .label { font-weight: bold; color: #555; }
+    .value { color: #333; }
+    .footer { text-align: center; padding: 20px; color: #777; font-size: 12px; }
+    .badge { display: inline-block; padding: 5px 15px; background: #2ecc71; color: white; border-radius: 20px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>⚽ New Registration Received</h1>
+      <p><span class="badge">${registrationType} Registration</span></p>
+    </div>
+    
+    <div class="content">
+      <div class="section">
+        <h2>Contact Information</h2>
+        <div class="field"><span class="label">Name:</span> <span class="value">${data.firstName} ${data.lastName}</span></div>
+        <div class="field"><span class="label">Email:</span> <span class="value">${data.email}</span></div>
+        <div class="field"><span class="label">Phone:</span> <span class="value">${data.phone}</span></div>
+        <div class="field"><span class="label">Date of Birth:</span> <span class="value">${data.dateOfBirth}</span></div>
+      </div>
+  `;
+  
+  // Add team-specific or individual-specific information
+  if (data.registrationType === 'team') {
+    emailBody += `
+      <div class="section">
+        <h2>Team Information</h2>
+        <div class="field"><span class="label">Team Name:</span> <span class="value">${data.teamName}</span></div>
+        <div class="field"><span class="label">Number of Players:</span> <span class="value">${data.numberOfPlayers}</span></div>
+        <div class="field"><span class="label">Age Division:</span> <span class="value">${data.ageDivision}</span></div>
+      </div>
+    `;
+  } else {
+    emailBody += `
+      <div class="section">
+        <h2>Player Information</h2>
+        <div class="field"><span class="label">Position:</span> <span class="value">${data.position}</span></div>
+        <div class="field"><span class="label">Experience Level:</span> <span class="value">${data.experienceLevel}</span></div>
+      </div>
+    `;
+  }
+  
+  emailBody += `
+      <div class="section">
+        <h2>Emergency Contact</h2>
+        <div class="field"><span class="label">Name:</span> <span class="value">${data.emergencyContactName}</span></div>
+        <div class="field"><span class="label">Phone:</span> <span class="value">${data.emergencyContactPhone}</span></div>
+      </div>
+      
+      <div class="section">
+        <h2>Additional Information</h2>
+        <div class="field"><span class="label">Medical Conditions/Allergies:</span> <span class="value">${data.medicalInfo || 'None reported'}</span></div>
+        <div class="field"><span class="label">Comments:</span> <span class="value">${data.comments || 'None'}</span></div>
+      </div>
+      
+      <div class="section">
+        <h2>Liability Waiver</h2>
+        <div class="field"><span class="label">Agreement Status:</span> <span class="value" style="color: #2ecc71; font-weight: bold;">✓ Accepted</span></div>
+        <div class="field"><span class="label">Timestamp:</span> <span class="value">${new Date(data.timestamp).toLocaleString()}</span></div>
+      </div>
+    </div>
+    
+    <div class="footer">
+      <p>This registration was submitted on ${new Date(data.timestamp).toLocaleString()}</p>
+      <p>View all registrations in your <a href="https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}">Google Sheet</a></p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+  
+  // Send to notification email
+  GmailApp.sendEmail(
+    CONFIG.NOTIFICATION_EMAIL,
+    subject,
+    '', // Plain text body (empty, we're using HTML)
+    {
+      htmlBody: emailBody,
+      name: 'Soccer Tournament Registration'
+    }
+  );
+  
+  // Send confirmation to registrant
+  sendConfirmationEmail(data);
+}
+
+// Send confirmation email to the person who registered
+function sendConfirmationEmail(data) {
+  const registrationType = data.registrationType === 'team' ? 'Team' : 'Individual';
+  const subject = `Registration Confirmed - Soccer Tournament`;
+  
+  const confirmationBody = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+    .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+    .section { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; }
+    .success-icon { font-size: 48px; margin-bottom: 10px; }
+    .field { margin-bottom: 10px; }
+    .label { font-weight: bold; color: #555; }
+    .value { color: #333; }
+    .footer { text-align: center; padding: 20px; color: #777; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="success-icon">✓</div>
+      <h1>Registration Confirmed!</h1>
+      <p>Thank you for registering for the Soccer Tournament</p>
+    </div>
+    
+    <div class="content">
+      <div class="section">
+        <h2>Your Registration Details</h2>
+        <div class="field"><span class="label">Registration Type:</span> <span class="value">${registrationType}</span></div>
+        <div class="field"><span class="label">Name:</span> <span class="value">${data.firstName} ${data.lastName}</span></div>
+        <div class="field"><span class="label">Email:</span> <span class="value">${data.email}</span></div>
+        ${data.registrationType === 'team' ? `<div class="field"><span class="label">Team Name:</span> <span class="value">${data.teamName}</span></div>` : ''}
+        <div class="field"><span class="label">Registration Date:</span> <span class="value">${new Date(data.timestamp).toLocaleString()}</span></div>
+      </div>
+      
+      <div class="section">
+        <h2>What's Next?</h2>
+        <p>We've received your registration and will be in touch soon with:</p>
+        <ul>
+          <li>Tournament schedule and location details</li>
+          <li>Payment information (if applicable)</li>
+          <li>Rules and regulations</li>
+          <li>Any additional requirements</li>
+        </ul>
+      </div>
+      
+      <div class="section">
+        <h2>Contact Information</h2>
+        <p>If you have any questions, please contact us at:</p>
+        <p><strong>Email:</strong> ${CONFIG.NOTIFICATION_EMAIL}</p>
+      </div>
+    </div>
+    
+    <div class="footer">
+      <p>This is an automated confirmation email. Please keep it for your records.</p>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+  
+  GmailApp.sendEmail(
+    data.email,
+    subject,
+    '', // Plain text body
+    {
+      htmlBody: confirmationBody,
+      name: 'Soccer Tournament'
+    }
+  );
+}
+
+// Optional: Function to test the script
+function testScript() {
+  const testData = {
+    timestamp: new Date().toISOString(),
+    registrationType: 'team',
+    firstName: 'John',
+    lastName: 'Doe',
+    email: 'test@example.com',
+    phone: '555-0123',
+    dateOfBirth: '1990-01-01',
+    teamName: 'Test FC',
+    numberOfPlayers: '11',
+    ageDivision: 'Adult',
+    emergencyContactName: 'Jane Doe',
+    emergencyContactPhone: '555-0124',
+    medicalInfo: 'None',
+    comments: 'This is a test',
+    liabilityAgreement: 'on'
+  };
+  
+  writeToSheet(testData);
+  sendEmailNotification(testData);
+  console.log('Test completed successfully!');
+}
